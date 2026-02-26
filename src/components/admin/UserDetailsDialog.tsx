@@ -1,0 +1,363 @@
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Ban, Shield, Wallet, ShoppingCart, Clock, Send, Package, ScrollText, MessageSquare } from 'lucide-react';
+
+interface UserDetailsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: any;
+  onToggleBan: (userId: string, isBanned: boolean) => Promise<void>;
+  onUpdateRole: (userId: string, role: 'admin' | 'moderator' | 'user') => Promise<boolean>;
+  onUpdateBalance: (userId: string, amount: number, action: 'add' | 'set') => Promise<any>;
+  onFetchDetails: (userId: string) => Promise<any>;
+  onSendMessage: (userId: string, text: string) => Promise<boolean>;
+  onDeliverProduct: (userId: string, productId: string, quantity: number) => Promise<any>;
+  products: any[];
+  isLoading: boolean;
+}
+
+export const UserDetailsDialog = ({
+  open, onOpenChange, user, onToggleBan, onUpdateRole, onUpdateBalance, onFetchDetails,
+  onSendMessage, onDeliverProduct, products, isLoading
+}: UserDetailsDialogProps) => {
+  const [details, setDetails] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [balanceAction, setBalanceAction] = useState<'add' | 'set'>('add');
+  const [selectedRole, setSelectedRole] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [deliverProductId, setDeliverProductId] = useState('');
+  const [deliverQty, setDeliverQty] = useState('1');
+  const [delivering, setDelivering] = useState(false);
+
+  useEffect(() => {
+    if (open && user) {
+      loadDetails();
+      setSelectedRole(user.user_roles?.[0]?.role || 'user');
+    }
+  }, [open, user]);
+
+  const loadDetails = async () => {
+    if (!user) return;
+    setDetailsLoading(true);
+    const data = await onFetchDetails(user.id);
+    if (data) setDetails(data);
+    setDetailsLoading(false);
+  };
+
+  const handleBalanceUpdate = async () => {
+    if (!user || !balanceAmount) return;
+    await onUpdateBalance(user.id, parseFloat(balanceAmount), balanceAction);
+    setBalanceAmount('');
+    loadDetails();
+  };
+
+  const handleRoleChange = async (role: string) => {
+    if (!user) return;
+    setSelectedRole(role);
+    await onUpdateRole(user.id, role as 'admin' | 'moderator' | 'user');
+  };
+
+  const handleSendMessage = async () => {
+    if (!user || !messageText.trim()) return;
+    setSendingMessage(true);
+    await onSendMessage(user.id, messageText.trim());
+    setMessageText('');
+    setSendingMessage(false);
+  };
+
+  const handleDeliver = async () => {
+    if (!user || !deliverProductId) return;
+    setDelivering(true);
+    await onDeliverProduct(user.id, deliverProductId, parseInt(deliverQty) || 1);
+    setDeliverProductId('');
+    setDeliverQty('1');
+    setDelivering(false);
+    loadDetails();
+  };
+
+  if (!user) return null;
+
+  const formatDate = (d: string) => new Date(d).toLocaleDateString('ru-RU', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {user.username ? `@${user.username}` : user.first_name}
+            {user.is_banned && <Badge variant="destructive" className="text-xs">Забанен</Badge>}
+          </DialogTitle>
+        </DialogHeader>
+
+        {detailsLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : (
+          <Tabs defaultValue="info" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7">
+              <TabsTrigger value="info" className="text-xs">Инфо</TabsTrigger>
+              <TabsTrigger value="balance" className="text-xs">Баланс</TabsTrigger>
+              <TabsTrigger value="deliver" className="text-xs">Выдать</TabsTrigger>
+              <TabsTrigger value="message" className="text-xs">ЛС</TabsTrigger>
+              <TabsTrigger value="orders" className="text-xs">Заказы</TabsTrigger>
+              <TabsTrigger value="history" className="text-xs">Баланс</TabsTrigger>
+              <TabsTrigger value="logs" className="text-xs">Логи</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="info" className="space-y-4">
+              <Card className="p-4 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Telegram ID:</span></div>
+                  <div className="font-mono">{user.telegram_id}</div>
+                  <div><span className="text-muted-foreground">Username:</span></div>
+                  <div>{user.username || '—'}</div>
+                  <div><span className="text-muted-foreground">Имя:</span></div>
+                  <div>{user.first_name || '—'}</div>
+                  <div><span className="text-muted-foreground">Баланс:</span></div>
+                  <div className="font-bold">{parseFloat(String(user.balance)).toLocaleString('ru-RU')} ₽</div>
+                  <div><span className="text-muted-foreground">Регистрация:</span></div>
+                  <div className="text-xs">{formatDate(user.created_at)}</div>
+                </div>
+              </Card>
+
+              <Card className="p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Shield className="h-4 w-4" /> Роль
+                </p>
+                <Select value={selectedRole} onValueChange={handleRoleChange} disabled={isLoading}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Пользователь</SelectItem>
+                    <SelectItem value="moderator">Модератор</SelectItem>
+                    <SelectItem value="admin">Администратор</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Card>
+
+              <Button
+                variant={user.is_banned ? 'default' : 'destructive'}
+                className="w-full gap-2"
+                onClick={() => onToggleBan(user.id, user.is_banned)}
+                disabled={isLoading}
+              >
+                <Ban className="h-4 w-4" />
+                {user.is_banned ? 'Разбанить' : 'Забанить'}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="balance" className="space-y-4">
+              <Card className="p-4 text-center">
+                <p className="text-sm text-muted-foreground">Текущий баланс</p>
+                <p className="text-3xl font-bold">
+                  {parseFloat(String(details?.profile?.balance || user.balance)).toLocaleString('ru-RU')} ₽
+                </p>
+              </Card>
+
+              <Card className="p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Wallet className="h-4 w-4" /> Изменить баланс
+                </p>
+                <div className="flex gap-2">
+                  <Select value={balanceAction} onValueChange={(v) => setBalanceAction(v as 'add' | 'set')}>
+                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="add">Добавить</SelectItem>
+                      <SelectItem value="set">Установить</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    placeholder="Сумма"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  disabled={!balanceAmount || isLoading}
+                  onClick={handleBalanceUpdate}
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Применить'}
+                </Button>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="deliver" className="space-y-4">
+              <Card className="p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Package className="h-4 w-4" /> Выдать товар
+                </p>
+                <Select value={deliverProductId} onValueChange={setDeliverProductId}>
+                  <SelectTrigger><SelectValue placeholder="Выберите товар" /></SelectTrigger>
+                  <SelectContent>
+                    {products.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} — {parseFloat(p.price).toLocaleString('ru-RU')} ₽
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 items-center">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Кол-во:</span>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={deliverQty}
+                    onChange={(e) => setDeliverQty(e.target.value)}
+                    className="w-24"
+                  />
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  disabled={!deliverProductId || delivering}
+                  onClick={handleDeliver}
+                >
+                  {delivering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+                  Выдать товар
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Товар будет выдан бесплатно. Пользователь получит уведомление в Telegram.
+                </p>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="message" className="space-y-4">
+              <Card className="p-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Send className="h-4 w-4" /> Написать в ЛС бота
+                </p>
+                <Textarea
+                  placeholder="Текст сообщения... (поддерживается Markdown)"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                />
+                <Button
+                  className="w-full gap-2"
+                  disabled={!messageText.trim() || sendingMessage}
+                  onClick={handleSendMessage}
+                >
+                  {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Отправить
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Сообщение будет отправлено от имени бота в личные сообщения пользователю.
+                </p>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="orders" className="space-y-2">
+              {!details?.orders?.length ? (
+                <p className="text-center text-sm text-muted-foreground py-6">Нет заказов</p>
+              ) : (
+                details.orders.map((o: any) => (
+                  <Card key={o.id} className="p-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-mono text-xs">#{o.id.slice(0, 8)}</span>
+                      <Badge variant={o.status === 'completed' ? 'default' : 'outline'} className="text-xs">
+                        {o.status}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{formatDate(o.created_at)}</span>
+                      <span className="font-bold">{parseFloat(o.total).toLocaleString('ru-RU')} ₽</span>
+                    </div>
+                    {o.order_items?.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {o.order_items.map((i: any) => i.product_name).join(', ')}
+                      </p>
+                    )}
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="history" className="space-y-2">
+              {!details?.transactions?.length ? (
+                <p className="text-center text-sm text-muted-foreground py-6">Нет транзакций</p>
+              ) : (
+                details.transactions.map((t: any) => (
+                  <Card key={t.id} className="p-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <Badge variant="outline" className="text-xs">{t.type}</Badge>
+                        <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold text-sm ${t.type === 'purchase' ? 'text-destructive' : 'text-primary'}`}>
+                          {t.type === 'purchase' ? '-' : '+'}{Math.abs(t.amount).toLocaleString('ru-RU')} ₽
+                        </p>
+                        <p className="text-xs text-muted-foreground">{formatDate(t.created_at)}</p>
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="logs" className="space-y-3">
+              {/* Support tickets */}
+              {details?.tickets?.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <MessageSquare className="h-3 w-3" /> Обращения в поддержку
+                  </p>
+                  {details.tickets.map((t: any) => (
+                    <Card key={t.id} className="p-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium">{t.subject}</span>
+                        <Badge variant={t.status === 'closed' ? 'outline' : t.status === 'replied' ? 'default' : 'secondary'} className="text-xs">
+                          {t.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{t.message}</p>
+                      {t.admin_reply && (
+                        <p className="text-xs mt-1 text-primary">↳ {t.admin_reply}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">{formatDate(t.created_at)}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Analytics events */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <ScrollText className="h-3 w-3" /> Действия ({details?.events?.length || 0})
+                </p>
+                {!details?.events?.length ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">Нет событий</p>
+                ) : (
+                  details.events.slice(0, 50).map((e: any) => (
+                    <Card key={e.id} className="p-2">
+                      <div className="flex justify-between items-center">
+                        <Badge variant="outline" className="text-xs font-mono">{e.event_type}</Badge>
+                        <span className="text-xs text-muted-foreground">{formatDate(e.created_at)}</span>
+                      </div>
+                      {e.event_data && Object.keys(e.event_data).length > 0 && (
+                        <pre className="text-xs text-muted-foreground mt-1 overflow-x-auto max-h-20">
+                          {JSON.stringify(e.event_data, null, 2)}
+                        </pre>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};

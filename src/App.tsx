@@ -32,7 +32,9 @@ const StartAppRedirect = () => {
   useEffect(() => {
     const startParam = window.Telegram?.WebApp?.initDataUnsafe &&
       (window.Telegram.WebApp as any).initDataUnsafe?.start_param;
-    if (startParam === 'numbers' || startParam === 'review') {
+    if (startParam === 'cart') {
+      navigate('/cart', { replace: true });
+    } else if (startParam === 'numbers' || startParam === 'review') {
       navigate('/profile', { replace: true });
     }
   }, [navigate]);
